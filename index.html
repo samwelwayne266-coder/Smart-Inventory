@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wayne Core | Quantum Logistics</title>
+    <title>Wayne Core | Quantum Logistics v6.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -17,6 +17,8 @@
         .terminal-scroll::-webkit-scrollbar { width: 4px; }
         .terminal-scroll::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; }
         #signature-pad { background: #0f172a; border: 1px dashed #334155; border-radius: 1rem; }
+        .animate-slide { animation: slideIn 0.3s ease-out forwards; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
     </style>
 </head>
 <body class="p-4 lg:p-10 min-h-screen">
@@ -26,7 +28,7 @@
         <header class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6">
             <div>
                 <h1 class="text-4xl font-black tracking-tighter uppercase italic">Wayne <span class="text-indigo-500">Quantum</span></h1>
-                <p class="text-slate-500 font-mono text-[9px] tracking-[0.5em]">LOGISTICS_CORE_V6.0 // samwelwayne266</p>
+                <p class="text-slate-500 font-mono text-[9px] tracking-[0.5em]">LOGISTICS_CORE_V6.1 // samwelwayne266</p>
             </div>
             
             <div class="flex flex-wrap gap-4 items-center">
@@ -48,10 +50,8 @@
                     <h3 class="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-4">Stock Distribution</h3>
                     <canvas id="stockChart" height="200"></canvas>
                 </div>
-
                 <div class="glass p-6 rounded-[2.5rem] overflow-hidden">
                     <div id="reader" class="rounded-2xl"></div>
-                    <p class="text-center text-[9px] font-mono text-slate-500 mt-4 uppercase">Camera feed: Active</p>
                 </div>
             </div>
 
@@ -59,21 +59,23 @@
                 <div class="glass p-8 rounded-[2.5rem]">
                     <h3 class="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-6 italic">Manual Data Entry</h3>
                     <div class="space-y-4">
-                        <input type="text" id="in-name" placeholder="ITEM NAME" class="w-full bg-slate-900 border border-slate-800 p-4 rounded-xl text-xs font-bold uppercase outline-none focus:border-indigo-500 transition-all">
+                        <input type="text" id="in-name" placeholder="ITEM NAME (Optional if Code present)" class="w-full bg-slate-900 border border-slate-800 p-4 rounded-xl text-xs font-bold uppercase outline-none focus:border-indigo-500 transition-all">
+                        <input type="text" id="in-code" placeholder="SCANNED CODE (Optional if Name present)" class="w-full bg-slate-900 border border-slate-800 p-4 rounded-xl text-xs font-mono outline-none focus:border-indigo-500 transition-all">
+                        
                         <div class="grid grid-cols-2 gap-4">
-                            <input type="number" id="in-qty" placeholder="QUANTITY" class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-xs font-bold outline-none focus:border-indigo-500">
-                            <input type="number" id="in-price" placeholder="UNIT PRICE" class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-xs font-bold outline-none focus:border-indigo-500">
+                            <input type="number" id="in-qty" placeholder="QUANTITY*" class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-xs font-bold outline-none focus:border-indigo-500">
+                            <input type="number" id="in-price" placeholder="UNIT PRICE*" class="bg-slate-900 border border-slate-800 p-4 rounded-xl text-xs font-bold outline-none focus:border-indigo-500">
                         </div>
+                        
                         <select id="in-loc" class="w-full bg-slate-900 border border-slate-800 p-4 rounded-xl text-xs font-bold text-slate-400">
                             <option value="Warehouse A">Warehouse A</option>
                             <option value="Main Office">Main Office</option>
                             <option value="In Transit">In Transit</option>
                         </select>
                         
-                        <p class="text-[9px] font-black text-slate-500 uppercase mt-4 mb-2">Auth Signature</p>
-                        <canvas id="signature-pad" class="w-full h-32"></canvas>
+                        <canvas id="signature-pad" class="w-full h-32 mt-2"></canvas>
                         
-                        <button onclick="addAsset()" class="w-full bg-indigo-600 py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-indigo-500 transition-all mt-4">Execute Transaction</button>
+                        <button onclick="addAsset()" class="w-full bg-indigo-600 py-4 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-indigo-500 transition-all mt-4 shadow-lg shadow-indigo-500/20">Execute Transaction</button>
                     </div>
                 </div>
             </div>
@@ -81,18 +83,16 @@
             <div class="lg:col-span-4 space-y-4">
                 <div class="flex justify-between items-center px-2">
                     <h3 class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Operational Feed</h3>
-                    <input type="text" id="search" oninput="render()" placeholder="SEARCH_DB..." class="bg-slate-900 border border-slate-800 px-4 py-1 rounded text-[10px] w-32 font-mono">
+                    <input type="text" id="search" oninput="render()" placeholder="SEARCH_DB..." class="bg-slate-900 border border-slate-800 px-4 py-1 rounded text-[10px] w-32 font-mono outline-none">
                 </div>
                 
                 <div id="feed" class="terminal-scroll space-y-3 max-h-[800px] overflow-y-auto pr-2">
                     </div>
             </div>
-
         </div>
     </div>
 
     <script>
-        // --- CORE SYSTEM DATA ---
         let inventory = JSON.parse(localStorage.getItem('wayne_quantum_db')) || [];
         let stockChart = null;
         let signaturePad = new SignaturePad(document.getElementById('signature-pad'));
@@ -100,9 +100,9 @@
         // --- 1. SCANNER ENGINE ---
         const qrScanner = new Html5Qrcode("reader");
         qrScanner.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, (text) => {
-            document.getElementById('in-name').value = "SCANNED: " + text;
+            document.getElementById('in-code').value = text;
             if(window.navigator.vibrate) window.navigator.vibrate(50);
-        });
+        }).catch(err => console.log("Camera access required for scanning."));
 
         // --- 2. VOICE ENGINE ---
         const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -116,24 +116,29 @@
                 const cmd = e.results[0][0].transcript.toLowerCase();
                 document.getElementById('voice-btn').classList.remove('animate-pulse', 'bg-red-600');
                 if(cmd.includes("add")) {
-                    const parts = cmd.split(" ");
-                    document.getElementById('in-name').value = parts.slice(1).join(" ");
+                    document.getElementById('in-name').value = cmd.split(" ").slice(1).join(" ");
                 }
             };
         }
 
         // --- 3. OPERATIONS ---
         function addAsset() {
-            const name = document.getElementById('in-name').value;
+            const name = document.getElementById('in-name').value.trim();
+            const code = document.getElementById('in-code').value.trim();
             const qty = parseInt(document.getElementById('in-qty').value);
             const price = parseFloat(document.getElementById('in-price').value);
             const loc = document.getElementById('in-loc').value;
 
-            if(!name || isNaN(qty)) return alert("CRITICAL_ERROR: DATA_MISSING");
+            // Validation Logic: Name OR Code must exist. Qty and Price are necessary.
+            if((!name && !code) || isNaN(qty) || isNaN(price)) {
+                return alert("INCOMPLETE DATA: Name/Code, Quantity, and Price are required.");
+            }
 
             const item = { 
                 id: Date.now(), 
-                name, qty, price, loc, 
+                name: name || "UNNAMED_ASSET",
+                code: code || "NO_CODE",
+                qty, price, loc, 
                 sign: signaturePad.toDataURL(), 
                 date: new Date().toLocaleDateString() 
             };
@@ -141,7 +146,14 @@
             inventory.unshift(item);
             save();
             signaturePad.clear();
-            ['in-name', 'in-qty', 'in-price'].forEach(id => document.getElementById(id).value = '');
+            ['in-name', 'in-code', 'in-qty', 'in-price'].forEach(id => document.getElementById(id).value = '');
+        }
+
+        function deleteItem(id) {
+            if(confirm("Confirm deletion of this asset?")) {
+                inventory = inventory.filter(item => item.id !== id);
+                save();
+            }
         }
 
         function save() {
@@ -151,8 +163,8 @@
         }
 
         function exportData() {
-            let csv = "Item,Qty,Price,Location,Date\n";
-            inventory.forEach(i => csv += `${i.name},${i.qty},${i.price},${i.loc},${i.date}\n`);
+            let csv = "Item,Code,Qty,Price,Location,Date\n";
+            inventory.forEach(i => csv += `${i.name},${i.code},${i.qty},${i.price},${i.loc},${i.date}\n`);
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -164,8 +176,9 @@
         // --- 4. VISUALIZATION ---
         function updateChart() {
             const ctx = document.getElementById('stockChart').getContext('2d');
-            const labels = inventory.slice(0, 5).map(i => i.name);
-            const data = inventory.slice(0, 5).map(i => i.qty);
+            const topItems = inventory.slice(0, 5);
+            const labels = topItems.map(i => i.name !== "UNNAMED_ASSET" ? i.name : i.code);
+            const data = topItems.map(i => i.qty);
 
             if (stockChart) stockChart.destroy();
             stockChart = new Chart(ctx, {
@@ -173,16 +186,19 @@
                 data: {
                     labels,
                     datasets: [{
-                        label: 'Stock Level',
+                        label: 'Stock Qty',
                         data,
                         backgroundColor: '#6366f1',
-                        borderRadius: 10
+                        borderRadius: 8
                     }]
                 },
                 options: { 
                     responsive: true, 
                     plugins: { legend: { display: false } },
-                    scales: { y: { grid: { color: '#1e293b' }, ticks: { color: '#475569' } } }
+                    scales: { 
+                        y: { grid: { color: '#1e293b' }, ticks: { color: '#475569' } },
+                        x: { ticks: { color: '#475569', font: { size: 9 } } }
+                    }
                 }
             });
         }
@@ -192,32 +208,38 @@
             const search = document.getElementById('search').value.toLowerCase();
             let total = 0;
 
-            const filtered = inventory.filter(i => i.name.toLowerCase().includes(search));
+            const filtered = inventory.filter(i => 
+                i.name.toLowerCase().includes(search) || 
+                i.code.toLowerCase().includes(search)
+            );
 
             feed.innerHTML = filtered.map(item => {
                 total += (item.qty * item.price);
                 const isLow = item.qty < 5;
                 return `
-                <div class="glass p-5 rounded-3xl border-l-4 ${isLow ? 'border-red-500' : 'border-indigo-500'} transition-all hover:bg-white/5">
+                <div class="glass p-5 rounded-3xl border-l-4 ${isLow ? 'border-red-500' : 'border-indigo-500'} animate-slide hover:bg-white/5 group relative">
                     <div class="flex justify-between items-start">
                         <div>
                             <h4 class="font-black text-xs uppercase tracking-tight">${item.name}</h4>
-                            <p class="text-[9px] font-mono text-slate-500 mt-1">${item.loc} // ${item.date}</p>
+                            <p class="text-[8px] font-mono text-indigo-400 mt-1">CODE: ${item.code}</p>
+                            <p class="text-[8px] font-mono text-slate-500 uppercase">${item.loc} // ${item.date}</p>
                         </div>
-                        <div class="text-right">
+                        <div class="text-right flex flex-col items-end">
                             <p class="text-xs font-black text-white">$${(item.qty * item.price).toFixed(2)}</p>
-                            <p class="text-[8px] font-bold text-indigo-400">QTY: ${item.qty}</p>
+                            <p class="text-[8px] font-bold text-slate-400">QTY: ${item.qty}</p>
+                            <button onclick="deleteItem(${item.id})" class="mt-2 text-slate-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
                         </div>
                     </div>
-                    ${item.sign ? `<img src="${item.sign}" class="h-6 opacity-30 mt-3 grayscale invert">` : ''}
+                    ${item.sign ? `<img src="${item.sign}" class="h-6 opacity-30 mt-2 grayscale invert">` : ''}
                 </div>
                 `;
             }).join('');
 
-            document.getElementById('total-val').innerText = `$${total.toLocaleString()}`;
+            document.getElementById('total-val').innerText = `$${total.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
         }
 
-        // INITIALIZE
         render();
         updateChart();
     </script>
